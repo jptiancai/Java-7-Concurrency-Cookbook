@@ -767,89 +767,612 @@ public class WriterTask implements Runnable {
 
 - 输出结果:  后台线程,权限比较低,典型的示例就是java垃圾回收器.这里CleanerTask是后台线程,打印出现在容器中event的数量
 
-## 
+## Processing uncontrolled exceptions in a thread
 
 - Main.java
 
 ```java
+/**
+ * Main class of the example. Initialize a Thread to process the uncaught
+ * exceptions and starts a Task object that always throws an exception 
+ *
+ */
+public class Main {
 
+	/**
+	 * Main method of the example. Initialize a Thread to process the 
+	 * uncaught exceptions and starts a Task object that always throws an
+	 * exception 
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		// Creates the Task
+		Task task=new Task();
+		// Creates the Thread
+		Thread thread=new Thread(task);
+		// Sets de uncaugh exceptio handler
+		thread.setUncaughtExceptionHandler(new ExceptionHandler());
+		// Starts the Thread
+		thread.start();
+		
+		try {
+			thread.join();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		
+		System.out.printf("Thread has finished\n");
+
+	}
+
+}
 ```
 
-- 
+- Task.java
 
 ```java
+/**
+ * Runnable class than throws and Exception
+ *
+ */
+public class Task implements Runnable {
 
+
+	/**
+	 * Main method of the class
+	 */
+	@Override
+	public void run() {
+		// The next instruction always throws and exception
+		int numero=Integer.parseInt("TTT");
+	}
+
+}
 ```
 
-- 输出结果: 
+- ExceptionHandler.java
+
+```java
+/**
+ * Class that process the uncaught exceptions throwed in a Thread
+ *
+ */
+public class ExceptionHandler implements UncaughtExceptionHandler {
 
 
-## 
+	/**
+	 * Main method of the class. It process the uncaught excpetions throwed
+	 * in a Thread
+	 * @param t The Thead than throws the Exception
+	 * @param e The Exception throwed
+	 */
+	@Override	
+	public void uncaughtException(Thread t, Throwable e) {
+		System.out.printf("An exception has been captured\n");
+		System.out.printf("Thread: %s\n",t.getId());
+		System.out.printf("Exception: %s: %s\n",e.getClass().getName(),e.getMessage());
+		System.out.printf("Stack Trace: \n");
+		e.printStackTrace(System.out);
+		System.out.printf("Thread status: %s\n",t.getState());
+	}
+
+}
+```
+
+- 输出结果: 创建ExceptionHandler类,来重写uncaughtException方法,依次来格式化输出异常信息,包括线程的状态
+
+
+## Using local thread variables
 
 - Main.java
 
 ```java
+/**
+ * Main class of the UnsafeTask. Creates a Runnable task and
+ * three Thread objects that run it.
+ *
+ */
+public class Main {
 
+	/**
+	 * Main method of the UnsafeTaks. Creates a Runnable task and
+	 * three Thread objects that run it.
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		// Creates the unsafe task
+		UnsafeTask task=new UnsafeTask();
+		
+		// Throw three Thread objects
+		for (int i=0; i<3; i++){
+			Thread thread=new Thread(task);
+			thread.start();
+			try {
+				TimeUnit.SECONDS.sleep(2);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+}
 ```
 
-- 
+- SafeMain.java
 
 ```java
+/**
+ * Main class of the example.
+ *
+ */
+public class SafeMain {
+
+	/**
+	 * Main method of the example
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		// Creates a task
+		SafeTask task=new SafeTask();
+		
+		// Creates and start three Thread objects for that Task
+		for (int i=0; i<3; i++){
+			Thread thread=new Thread(task);
+			try {
+				TimeUnit.SECONDS.sleep(2);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+			thread.start();
+		}
+
+	}
+
+}
+```
+
+- SafeTask.java
+
+```java
+/**
+ * Class that shows the usage of ThreadLocal variables to share
+ * data between Thread objects
+ *
+ */
+public class SafeTask implements Runnable {
+
+	/**
+	 * ThreadLocal shared between the Thread objects
+	 */
+	private static ThreadLocal<Date> startDate= new ThreadLocal<Date>() {
+		protected Date initialValue(){
+			return new Date();
+		}
+	};
+	
+
+	/**
+	 * Main method of the class
+	 */
+	@Override
+	public void run() {
+		// Writes the start date
+		System.out.printf("Starting Thread: %s : %s\n",Thread.currentThread().getId(),startDate.get());
+		try {
+			TimeUnit.SECONDS.sleep((int)Math.rint(Math.random()*10));
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		// Writes the start date
+		System.out.printf("Thread Finished: %s : %s\n",Thread.currentThread().getId(),startDate.get());
+	}
+
+}
 
 ```
 
-- 输出结果: 
+- UnsafeTask.java
+
+```java
+/**
+ * Class that shows the problem generate when some Thread objects
+ * share a data structure
+ *
+ */
+public class UnsafeTask implements Runnable{
+
+	/**
+	 * Date shared by all threads
+	 */
+	private Date startDate;
+	
+	/**
+	 * Main method of the class. Saves the start date and writes
+	 * it to the console when it starts and when it ends
+	 */
+	@Override
+	public void run() {
+		startDate=new Date();
+		System.out.printf("Starting Thread: %s : %s\n",Thread.currentThread().getId(),startDate);
+		try {
+			TimeUnit.SECONDS.sleep((int)Math.rint(Math.random()*10));
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		System.out.printf("Thread Finished: %s : %s\n",Thread.currentThread().getId(),startDate);
+	}
+
+}
+
+```
+
+- 输出结果: 注意SafeTask中有ThreadLocal定义,这个是关键
 
 
-## 
+## Grouping threads into a group
 
 - Main.java
 
 ```java
+public class Main {
 
+	/**
+	 * Main class of the example
+	 * @param args
+	 */
+	public static void main(String[] args) {
+
+		// Create a ThreadGroup
+		ThreadGroup threadGroup = new ThreadGroup("Searcher");
+		Result result=new Result();
+
+		// Create a SeachTask and 10 Thread objects with this Runnable
+		SearchTask searchTask=new SearchTask(result);
+		for (int i=0; i<5; i++) {
+			Thread thread=new Thread(threadGroup, searchTask);
+			thread.start();
+			try {
+				TimeUnit.SECONDS.sleep(1);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+		
+		// Write information about the ThreadGroup to the console
+		System.out.printf("Number of Threads: %d\n",threadGroup.activeCount());
+		System.out.printf("Information about the Thread Group\n");
+		threadGroup.list();
+
+		// Write information about the status of the Thread objects to the console
+		Thread[] threads=new Thread[threadGroup.activeCount()];
+		threadGroup.enumerate(threads);
+		for (int i=0; i<threadGroup.activeCount(); i++) {
+			System.out.printf("Thread %s: %s\n",threads[i].getName(),threads[i].getState());
+		}
+
+		// Wait for the finalization of the Threadds
+		waitFinish(threadGroup);
+		
+		// Interrupt all the Thread objects assigned to the ThreadGroup
+		threadGroup.interrupt();
+	}
+
+	/**
+	 * Method that waits for the finalization of one of the ten Thread objects
+	 * assigned to the ThreadGroup
+	 * @param threadGroup
+	 */
+	private static void waitFinish(ThreadGroup threadGroup) {
+		while (threadGroup.activeCount()>9) {
+			try {
+				TimeUnit.SECONDS.sleep(1);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+}
 ```
 
-- 
+- Result.java
 
 ```java
+/**
+ * Class that stores the result of the search
+ *
+ */
+public class Result {
+	
+	/**
+	 * Name of the Thread that finish
+	 */
+	private String name;
+	
+	/**
+	 * Read the name of the Thread
+	 * @return The name of the Thread
+	 */
+	public String getName() {
+		return name;
+	}
+	
+	/**
+	 * Write the name of the Thread
+	 * @param name The name of the Thread
+	 */
+	public void setName(String name) {
+		this.name = name;
+	}
 
+}
 ```
 
-- 输出结果: 
+- SearchTask.java
+
+```java
+/**
+ * Class that simulates a search operation
+ *
+ */
+public class SearchTask implements Runnable {
+
+	/**
+	 * Store the name of the Thread if this Thread finish and is not interrupted
+	 */
+	private Result result;
+	
+	/**
+	 * Constructor of the class
+	 * @param result Parameter to initialize the object that stores the results
+	 */
+	public SearchTask(Result result) {
+		this.result=result;
+	}
+
+	@Override
+	public void run() {
+		String name=Thread.currentThread().getName();
+		System.out.printf("Thread %s: Start\n",name);
+		try {
+			doTask();
+			result.setName(name);
+		} catch (InterruptedException e) {
+			System.out.printf("Thread %s: Interrupted\n",name);
+			return;
+		}
+		System.out.printf("Thread %s: End\n",name);
+	}
+	
+	/**
+	 * Method that simulates the search operation
+	 * @throws InterruptedException Throws this exception if the Thread is interrupted
+	 */
+	private void doTask() throws InterruptedException {
+		Random random=new Random((new Date()).getTime());
+		int value=(int)(random.nextDouble()*100);
+		System.out.printf("Thread %s: %d\n",Thread.currentThread().getName(),value);
+		TimeUnit.SECONDS.sleep(value);
+	}
+
+}
+```
+
+- 输出结果: ThreadGroup的使用方法
 
 
-## 
+## Processing uncontrolled exceptions in a group of threads
 
 - Main.java
 
 ```java
+/**
+ * Main class of the example
+ *
+ */
+public class Main {
 
+	/**
+	 * Main method of the example. Creates a group of threads of
+	 * MyThreadGroup class and two threads inside this group
+	 * @param args
+	 */
+	public static void main(String[] args) {
+
+		// Create a MyThreadGroup object
+		MyThreadGroup threadGroup=new MyThreadGroup("MyThreadGroup");
+		// Create a Taks object
+		Task task=new Task();
+		// Create and start two Thread objects for this Task
+		for (int i=0; i<2; i++){
+			Thread t=new Thread(threadGroup,task);
+			t.start();
+		}
+	}
+
+}
 ```
 
-- 
+- MyThreadGroup.java
 
 ```java
+/**
+ * Class that extends the ThreadGroup class to implement
+ * a uncaught exceptions method 
+ *
+ */
+public class MyThreadGroup extends ThreadGroup {
 
+	/**
+	 * Constructor of the class. Calls the parent class constructor
+	 * @param name
+	 */
+	public MyThreadGroup(String name) {
+		super(name);
+	}
+
+
+	/**
+	 * Method for process the uncaught exceptions
+	 */
+	@Override
+	public void uncaughtException(Thread t, Throwable e) {
+		// Prints the name of the Thread
+		System.out.printf("The thread %s has thrown an Exception\n",t.getId());
+		// Print the stack trace of the exception
+		e.printStackTrace(System.out);
+		// Interrupt the rest of the threads of the thread group
+		System.out.printf("Terminating the rest of the Threads\n");
+		interrupt();
+	}
+}
 ```
 
-- 输出结果: 
+- Task.java
+
+```java
+/**
+ * Class that implements the concurrent task
+ *
+ */
+public class Task implements Runnable {
+
+	@Override
+	public void run() {
+		int result;
+		// Create a random number generator
+		Random random=new Random(Thread.currentThread().getId());
+		while (true) {
+			// Generate a random number a calculate 1000 divide by that random number
+			result=1000/((int)(random.nextDouble()*1000));
+			System.out.printf("%s : %f\n",Thread.currentThread().getId(),result);
+			// Check if the Thread has been interrupted
+			if (Thread.currentThread().isInterrupted()) {
+				System.out.printf("%d : Interrupted\n",Thread.currentThread().getId());
+				return;
+			}
+		}
+	}
+}
+```
+
+- 输出结果: 继承ThreadGroup,来实现uncaughtException方法
 
 
-## 
+## Creating threads through a factory
 
 - Main.java
 
 ```java
+/**
+ * Main class of the example. Creates a Thread factory and creates ten 
+ * Thread objects using that Factory 
+ *
+ */
+public class Main {
 
+	/**
+	 * Main method of the example. Creates a Thread factory and creates 
+	 * ten Thread objects using that Factory
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		// Creates the factory
+		MyThreadFactory factory=new MyThreadFactory("MyThreadFactory");
+		// Creates a task
+		Task task=new Task();
+		Thread thread;
+		
+		// Creates and starts ten Thread objects
+		System.out.printf("Starting the Threads\n");
+		for (int i=0; i<10; i++){
+			thread=factory.newThread(task);
+			thread.start();
+		}
+		// Prints the statistics of the ThreadFactory to the console
+		System.out.printf("Factory stats:\n");
+		System.out.printf("%s\n",factory.getStats());
+		
+	}
+
+}
 ```
 
-- 
+- MyThreadFactory.java
 
 ```java
+/**
+ * Class that implements the ThreadFactory interface to
+ * create a basic thread factory
+ *
+ */
+public class MyThreadFactoryMyThreadFactory.java implements ThreadFactory {
+
+	// Attributes to save the necessary data to the factory
+	private int counter;
+	private String name;
+	private List<String> stats;
+	
+	/**
+	 * Constructor of the class
+	 * @param name Base name of the Thread objects created by this Factory
+	 */
+	public MyThreadFactory(String name){
+		counter=0;
+		this.name=name;
+		stats=new ArrayList<String>();
+	}
+	
+	/**
+	 * Method that creates a new Thread object using a Runnable object
+	 * @param r: Runnable object to create the new Thread
+	 */
+	@Override
+	public Thread newThread(Runnable r) {
+		// Create the new Thread object
+		Thread t=new Thread(r,name+"-Thread_"+counter);
+		counter++;
+		// Actualize the statistics of the factory
+		stats.add(String.format("Created thread %d with name %s on %s\n",t.getId(),t.getName(),new Date()));
+		return t;
+	}
+	
+	/**
+	 * Method that returns the statistics of the ThreadFactory 
+	 * @return The statistics of the ThreadFactory
+	 */
+	public String getStats(){
+		StringBuffer buffer=new StringBuffer();
+		Iterator<String> it=stats.iterator();
+		
+		while (it.hasNext()) {
+			buffer.append(it.next());
+		}
+		
+		return buffer.toString();
+	}
+
+}
+```
+
+- Task.java
+
+```java
+public class Task implements Runnable {
+
+	@Override
+	public void run() {
+		try {
+			TimeUnit.SECONDS.sleep(1);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+	}
+
+}
 
 ```
 
-- 输出结果: 
+- 输出结果: 继承ThreadFactory类,实现newThread方法.和设计模式中的工厂模式很像,线程也有自己的工厂(易于维护,易于控制数量和易于统计生成的数据),缺点是你得保证应用中所有的线程是通过ThreadFactory创建的.
 
 
 ## 
