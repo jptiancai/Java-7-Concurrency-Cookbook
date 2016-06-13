@@ -1,0 +1,1663 @@
+﻿<!doctype html public '-//W3C//DTD HTML 4.0 Transitional //EN'>
+<html>
+<head>
+<title>Basic Thread Synchronization</title>
+<meta charset='UTF-8' />
+<meta name='generator' content='EverEdit' />
+<link href='D:\EverEdit\mode\markdown\default.css' rel='stylesheet'></link>
+<link href='D:\EverEdit\mode\markdown\prettify.css' rel='stylesheet'></link>
+<script type='text/javascript' src='D:\EverEdit\mode\markdown\prettify.js'></script>
+<script type='text/javascript' src='D:\EverEdit\mode\markdown\jquery-1.10.2.min.js'></script>
+<script type='text/javascript' src='D:\EverEdit\mode\markdown\toc.js'></script>
+</head>
+<body>
+<div id='generated-toc'></div>
+<h2>Synchronizing a method</h2>
+
+<ul>
+<li>Main.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * Main class of the example. It creates an account, a company and a bank
+ * to work with the account. The final balance should be equal to the initial, but....
+ *
+ */
+public class Main {
+
+    /**
+     * Main method of the example
+     * @param args
+     */
+    public static void main(String[] args) {
+        // Creates a new account ...
+        Account account=new Account();
+        // an initialize its balance to 1000
+        account.setBalance(1000);
+
+        // Creates a new Company and a Thread to run its task
+        Company company=new Company(account);
+        Thread companyThread=new Thread(company);
+        // Creates a new Bank and a Thread to run its task
+        Bank bank=new Bank(account);
+        Thread bankThread=new Thread(bank);
+
+        // Prints the initial balance
+        System.out.printf("Account : Initial Balance: %f\n",account.getBalance());
+
+        // Starts the Threads
+        companyThread.start();
+        bankThread.start();
+
+        try {
+            // Wait for the finalization of the Threads
+            companyThread.join();
+            bankThread.join();
+            // Print the final balance
+            System.out.printf("Account : Final Balance: %f\n",account.getBalance());
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+
+<ul>
+<li>Account.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class simulate a bank account 
+ *
+ */
+public class Account {
+
+    /**
+     * Balance of the bank account
+     */
+    private double balance;
+
+    /**
+     * Returns the balance of the account
+     * @return the balance of the account
+     */
+    public double getBalance() {
+        return balance;
+    }
+
+    /**
+     * Establish the balance of the account
+     * @param balance the new balance of the account
+     */
+    public void setBalance(double balance) {
+        this.balance = balance;
+    }
+
+    /**
+     * Add an import to the balance of the account
+     * @param amount import to add to the balance
+     */
+    public void addAmount(double amount) {
+        double tmp=balance;
+        try {
+            Thread.sleep(10);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        tmp+=amount;
+        balance=tmp;
+    }
+
+    /**
+     * Subtract an import to the balance of the account
+     * @param amount import to subtract to the balance
+     */
+    public void subtractAmount(double amount) {
+        double tmp=balance;
+        try {
+            Thread.sleep(10);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        tmp-=amount;
+        balance=tmp;
+    }
+
+}</code></pre>
+
+<ul>
+<li>Bank.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class simulates a bank or a cash dispenser that takes money
+ * from an account
+ *
+ */
+public class Bank implements Runnable {
+
+    /**
+     * The account affected by the operations
+     */
+    private Account account;
+
+    /**
+     * Constructor of the class. Initializes the account
+     * @param account The account affected by the operations
+     */
+    public Bank(Account account) {
+        this.account=account;
+    }
+
+
+    /**
+     * Core method of the Runnable
+     */
+    public void run() {
+        for (int i=0; i&lt;100; i++){
+            account.subtractAmount(1000);
+        }
+    }
+
+}</code></pre>
+
+<ul>
+<li>Company.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class simulates a company that pays a salary an
+ * insert money into an account 
+ *
+ */
+public class Company implements Runnable {
+
+    /**
+     * The account affected by the operations
+     */
+    private Account account;
+
+    /**
+     * Constructor of the class. Initializes the account
+     * @param account the account affected by the operations
+     */
+    public Company(Account account) {
+        this.account=account;
+    }
+
+    /**
+     * Core method of the Runnable
+     */
+    public void run() {
+        for (int i=0; i&lt;100; i++){
+            account.addAmount(1000);
+        }
+    }
+
+}</code></pre>
+
+<ul>
+<li>输出结果: 经典的银行入账和出账情况,此示例没有用,synchronized关键字 ,
+所以会出现初始值和最后的值不一致的情况,解决起来也容易,只要在addAmount和subtractAmount方法加上synchronized关键字即可</li>
+</ul>
+
+<p>另外static方法比较特殊,这里需要注意:
+Static methods have a different behavior. Only one execution thread will access one of the static
+methods declared with the  synchronized keyword, but another thread can access other non-
+static methods of an object of that class. You have to be very careful with this point, because
+two threads can access two different  synchronized methods if one is static and the other one
+is not. If both methods change the same data, you can have data inconsistency errors.</p>
+
+<h2>Arranging independent attributes in synchronized classes</h2>
+
+<ul>
+<li>Main.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * Core class of the example. Creates a cinema and two threads for
+ * the ticket office. Run the threads to analyze the results obtained
+ *
+ */
+public class Main {
+
+    /**
+     * Main method of the example
+     * @param args
+     */
+    public static void main(String[] args) {
+        // Creates a Cinema
+        Cinema cinema=new Cinema();
+
+        // Creates a TicketOffice1 and a Thread to run it
+        TicketOffice1 ticketOffice1=new TicketOffice1(cinema);
+        Thread thread1=new Thread(ticketOffice1,"TicketOffice1");
+
+        // Creates a TicketOffice2 and a Thread to run it
+        TicketOffice2 ticketOffice2=new TicketOffice2(cinema);
+        Thread thread2=new Thread(ticketOffice2,"TicketOffice2");
+
+        // Starts the threads
+        thread1.start();
+        thread2.start();
+
+        try {
+            // Waits for the finalization of the threads
+            thread1.join();
+            thread2.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        // Print the vacancies in the cinemas
+        System.out.printf("Room 1 Vacancies: %d\n",cinema.getVacanciesCinema1());
+        System.out.printf("Room 2 Vacancies: %d\n",cinema.getVacanciesCinema2());
+    }
+
+}</code></pre>
+
+<ul>
+<li>Cinema.java</li>
+</ul>
+
+<pre><code class="java">public class Cinema {
+
+    /**
+     * This two variables store the vacancies in two cinemas
+     */
+    private long vacanciesCinema1;
+    private long vacanciesCinema2;
+
+    /**
+     * Two objects for the synchronization. ControlCinema1 synchronizes the
+     * access to the vacancesCinema1 attribute and controlCinema2 synchronizes
+     * the access to the vacanciesCinema2 attribute.
+     */
+    private final Object controlCinema1, controlCinema2;
+
+    /**
+     * Constructor of the class. Initializes the objects
+     */
+    public Cinema(){
+        controlCinema1=new Object();
+        controlCinema2=new Object();
+        vacanciesCinema1=20;
+        vacanciesCinema2=20;
+    }
+
+    /**
+     * This method implements the operation of sell tickets for the cinema 1
+     * @param number number of tickets sold
+     * @return true if the tickets are sold, false if there is no vacancies
+     */
+    public boolean sellTickets1 (int number) {
+        synchronized (controlCinema1) {
+            if (number&lt;vacanciesCinema1) {
+                vacanciesCinema1-=number;
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
+
+    /**
+     * This method implements the operation of sell tickets for the cinema 2
+     * @param number number of tickets sold
+     * @return true if the tickets are sold, false if there is no vacancies
+     */
+    public boolean sellTickets2 (int number){
+        synchronized (controlCinema2) {
+            if (number&lt;vacanciesCinema2) {
+                vacanciesCinema2-=number;
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
+
+    /**
+     * This method implements the operation of return tickets for the cinema 1
+     * @param number number of the tickets returned
+     * @return true
+     */
+    public boolean returnTickets1 (int number) {
+        synchronized (controlCinema1) {
+            vacanciesCinema1+=number;
+            return true;
+        }
+    }
+
+    /**
+     * This method implements the operation of return tickets for the cinema 1
+     * @param number number of the tickets returned
+     * @return true
+     */
+    public boolean returnTickets2 (int number) {
+        synchronized (controlCinema2) {
+            vacanciesCinema2+=number;
+            return true;
+        }
+    }
+
+    /**
+     * Return the vacancies in the cinema 1
+     * @return the vacancies in the cinema 1
+     */
+    public long getVacanciesCinema1() {
+        return vacanciesCinema1;
+    }
+
+    /**
+     * Return the vacancies in the cinema 2
+     * @return the vacancies in the cinema 2
+     */
+    public long getVacanciesCinema2() {
+        return vacanciesCinema2;
+    }
+
+}</code></pre>
+
+<ul>
+<li>TicketOffice1.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class simulates a ticket office. It sell or return tickets
+ * for the two cinemas
+ *
+ */
+public class TicketOffice1 implements Runnable {
+
+    /**
+     * The cinema 
+     */
+    private Cinema cinema;
+
+    /**
+     * Constructor of the class
+     * @param cinema the cinema
+     */
+    public TicketOffice1 (Cinema cinema) {
+        this.cinema=cinema;
+    }
+
+    /**
+     * Core method of this ticket office. Simulates selling and returning tickets
+     */
+    @Override
+    public void run() {
+        cinema.sellTickets1(3);
+        cinema.sellTickets1(2);
+        cinema.sellTickets2(2);
+        cinema.returnTickets1(3);
+        cinema.sellTickets1(5);
+        cinema.sellTickets2(2);
+        cinema.sellTickets2(2);
+        cinema.sellTickets2(2);
+    }
+
+}</code></pre>
+
+<ul>
+<li>TicketOffice2.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class simulates a ticket office. It sell or return tickets
+ * for the two cinemas
+ *
+ */
+public class TicketOffice2 implements Runnable {
+
+    /**
+     * The cinema 
+     */
+    private Cinema cinema;
+
+    /**
+     * Constructor of the class
+     * @param cinema the cinema
+     */
+    public TicketOffice2(Cinema cinema){
+        this.cinema=cinema;
+    }
+
+    /**
+     * Core method of this ticket office. Simulates selling and returning tickets
+     */
+    @Override
+    public void run() {
+        cinema.sellTickets2(2);
+        cinema.sellTickets2(4);
+        cinema.sellTickets1(2);
+        cinema.sellTickets1(1);
+        cinema.returnTickets2(2);
+        cinema.sellTickets1(3);
+        cinema.sellTickets2(2);
+        cinema.sellTickets1(2);
+    }
+
+}</code></pre>
+
+<ul>
+<li><p>输出结果: 模拟电影院出售电影票,退票的场景.对于某个字段使用了synchronized代码块</p></li>
+<li><p>同样给出另外一个例子,关于某个大厦监测器的使用</p></li>
+<li><p>Main.java</p></li>
+</ul>
+
+<pre><code class="java">/**
+ * Main class of the example. Creates an object with the statistics of the
+ * building and executes two threads that simulates two sensors in the building
+ *
+ */
+public class Main {
+
+    /**
+     * Main method of the example
+     * @param args
+     */
+    public static void main(String[] args) {
+
+        // Create a new object for the statistics
+        BuildStats stats=new BuildStats();
+
+        // Create a Sensor1 object and a Thread to run it
+        Sensor1 sensor1=new Sensor1(stats);
+        Thread thread1=new Thread(sensor1,"Sensor 1");
+
+        // Create a Sensor 2 object and a Thread to run it
+        Sensor2 sensor2=new Sensor2(stats);
+        Thread thread2=new Thread(sensor2,"Sensor 2");
+
+        // Get the actual time
+        Date date1=new Date();
+
+        //Starts the threads
+        thread1.start();
+        thread2.start();
+
+        try {
+            // Wait for the finalization of the threads
+            thread1.join();
+            thread2.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        //Get the actual time and print the execution time
+        Date date2=new Date();
+        stats.printStats();
+        System.out.println("Execution Time: "+((date2.getTime()-date1.getTime())/1000));
+
+    }
+
+}</code></pre>
+
+<ul>
+<li>BuildStats.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * 
+ * This class simulates a control class that stores the statistics of
+ * access to a building, controlling the number of people inside the building
+ *
+ */
+public class BuildStats {
+
+    /**
+     * Number of people inside the building
+     */
+    private long numPeople;
+
+    /**
+     * Method that simulates when people come in into the building
+     */
+    public /*synchronized*/ void comeIn(){
+        System.out.printf("%s: A person enters.\n",Thread.currentThread().getName());
+        synchronized(this) {
+            numPeople++;
+        }
+        generateCard();
+    }
+
+    /**
+     * Method that simulates when people leave the building
+     */
+    public /*synchronized*/ void goOut(){
+        System.out.printf("%s: A person leaves.\n",Thread.currentThread().getName());
+        synchronized(this) {
+            numPeople--;
+        }
+        generateReport();
+    }
+
+    /**
+     * Method that simulates the generation of a card when people come in into the building
+     */
+    private void generateCard(){
+        try {
+            TimeUnit.SECONDS.sleep(3);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    /**
+     * Method that simulates the generation of a report when people leaves the building
+     */
+    private void generateReport(){
+        try {
+            TimeUnit.SECONDS.sleep(2);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Method that print the number of people inside the building
+     */
+    public void printStats(){
+        System.out.printf("%d persons in the building.\n",numPeople);
+    }
+
+}</code></pre>
+
+<ul>
+<li>Sensor1.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class simulates a sensor in the building
+ */
+public class Sensor1 implements Runnable {
+
+    /**
+     * Object with the statistics of the building
+     */
+    private BuildStats stats;
+
+    /**
+     * Constructor of the class
+     * @param stats object with the statistics of the building
+     */
+    public Sensor1(BuildStats stats){
+        this.stats=stats;
+    }
+
+    /**
+     * Core method of the Runnable. Simulates inputs and outputs in the building
+     */
+    @Override
+    public void run() {
+        stats.comeIn();
+        stats.comeIn();
+        stats.comeIn();
+        stats.goOut();
+        stats.comeIn();
+    }
+
+}</code></pre>
+
+<ul>
+<li>Sensor2.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class simulates a sensor in the building
+ */
+public class Sensor2 implements Runnable {
+
+    /**
+     * Object with the statistics of the building
+     */
+    private BuildStats stats;
+
+    /**
+     * Constructor of the class
+     * @param stats object with the statistics of the building
+     */
+    public Sensor2(BuildStats stats){
+        this.stats=stats;
+    }
+
+    /**
+     * Core method of the Runnable. Simulates inputs and outputs in the building
+     */
+    @Override
+    public void run() {
+        stats.comeIn();
+        stats.comeIn();
+        stats.goOut();
+        stats.goOut();
+        stats.goOut();
+    }
+
+}</code></pre>
+
+<ul>
+<li>输出结果:统计总共有多少人进出,进出的次数.</li>
+</ul>
+
+<h2>Using conditions in synchronized code</h2>
+
+<ul>
+<li>Main.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * Main class of the example
+ */
+public class Main {
+
+    /**
+     * Main method of the example
+     */
+    public static void main(String[] args) {
+
+        // Creates an event storage
+        EventStorage storage=new EventStorage();
+
+        // Creates a Producer and a Thread to run it
+        Producer producer=new Producer(storage);
+        Thread thread1=new Thread(producer);
+
+        // Creates a Consumer and a Thread to run it
+        Consumer consumer=new Consumer(storage);
+        Thread thread2=new Thread(consumer);
+
+        // Starts the thread
+        thread2.start();
+        thread1.start();
+    }
+
+}</code></pre>
+
+<ul>
+<li>Consumer.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class implements a consumer of events.
+ *
+ */
+public class Consumer implements Runnable {
+
+    /**
+     * Store to work with
+     */
+    private EventStorage storage;
+
+    /**
+     * Constructor of the class. Initialize the storage
+     * @param storage The store to work with
+     */
+    public Consumer(EventStorage storage){
+        this.storage=storage;
+    }
+
+    /**
+     * Core method for the consumer. Consume 100 events
+     */
+    @Override
+    public void run() {
+        for (int i=0; i&lt;100; i++){
+            storage.get();
+        }
+    }
+
+}</code></pre>
+
+<ul>
+<li>EventStorage.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class implements an Event storage. Producers will storage
+ * events in it and Consumers will process them. An event will
+ * be a java.util.Date object
+ *
+ */
+public class EventStorage {
+
+    /**
+     * Maximum size of the storage
+     */
+    private int maxSize;
+    /**
+     * Storage of events
+     */
+    private List&lt;Date&gt; storage;
+
+    /**
+     * Constructor of the class. Initializes the attributes.
+     */
+    public EventStorage(){
+        maxSize=10;
+        storage=new LinkedList&lt;&gt;();
+    }
+
+    /**
+     * This method creates and storage an event.
+     */
+    public synchronized void set(){
+            while (storage.size()==maxSize){
+                try {
+                    wait();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            storage.add(new Date());
+            System.out.printf("\nSet: %d",storage.size());
+            notify();
+    }
+
+    /**
+     * This method delete the first event of the storage.
+     */
+    public synchronized void get(){
+            while (storage.size()==0){
+                try {
+                    wait();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            System.out.printf("\nGet: %d: %s",storage.size(),((LinkedList&lt;?&gt;)storage).poll());
+            notify();
+    }
+
+}</code></pre>
+
+<ul>
+<li>Producer.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class implements a producer of events.
+ *
+ */
+public class Producer implements Runnable {
+
+    /**
+     * Store to work with
+     */
+    private EventStorage storage;
+
+    /**
+     * Constructor of the class. Initialize the storage.
+     * @param storage The store to work with
+     */
+    public Producer(EventStorage storage){
+        this.storage=storage;
+    }
+
+    /**
+     * Core method of the producer. Generates 100 events.
+     */
+    @Override
+    public void run() {
+        for (int i=0; i&lt;100; i++){
+            storage.set();
+        }
+    }
+}</code></pre>
+
+<ul>
+<li>输出结果: 生产者-消费者模式. synchronized关键字与wait() ,  notify()方法的使用</li>
+</ul>
+
+<h2>Synchronizing a block of code with a Lock</h2>
+
+<ul>
+<li>Main.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * Main class of the example.
+ *
+ */
+public class Main {
+
+    /**
+     * Main method of the class. Run ten jobs in parallel that
+     * send documents to the print queue at the same time.
+     */
+    public static void main (String args[]){
+
+        // Creates the print queue
+        PrintQueue printQueue=new PrintQueue();
+
+        // Creates ten Threads
+        Thread thread[]=new Thread[10];
+        for (int i=0; i&lt;10; i++){
+            thread[i]=new Thread(new Job(printQueue),"Thread "+i);
+        }
+
+        // Starts the Threads
+        for (int i=0; i&lt;10; i++){
+            thread[i].start();
+        }
+    }
+
+}</code></pre>
+
+<ul>
+<li>Job.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class simulates a job that send a document to print.
+ *
+ */
+public class Job implements Runnable {
+
+    /**
+     * Queue to print the documents
+     */
+    private PrintQueue printQueue;
+
+    /**
+     * Constructor of the class. Initializes the queue
+     * @param printQueue
+     */
+    public Job(PrintQueue printQueue){
+        this.printQueue=printQueue;
+    }
+
+    /**
+     * Core method of the Job. Sends the document to the print queue and waits
+     *  for its finalization
+     */
+    @Override
+    public void run() {
+        System.out.printf("%s: Going to print a document\n",Thread.currentThread().getName());
+        printQueue.printJob(new Object());
+        System.out.printf("%s: The document has been printed\n",Thread.currentThread().getName());      
+    }
+}</code></pre>
+
+<ul>
+<li>PrintQueue.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class simulates a print queue
+ *
+ */
+public class PrintQueue {
+
+    /**
+     * Lock to control the access to the queue.
+     */
+    private final Lock queueLock=new ReentrantLock();
+
+    /**
+     * Method that prints a document
+     * @param document document to print
+     */
+    public void printJob(Object document){
+        queueLock.lock();
+
+        try {
+            Long duration=(long)(Math.random()*10000);
+            System.out.printf("%s: PrintQueue: Printing a Job during %d seconds\n",Thread.currentThread().getName(),(duration/1000));
+            Thread.sleep(duration);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            queueLock.unlock();
+        }
+    }
+}</code></pre>
+
+<ul>
+<li><p>输出结果: 模拟打印机的操作,用了ReentrantLock锁来实现, 与其相似的方法有tryLock()</p></li>
+<li><p>ReentrantLock的优点</p>
+
+<ul><li>It allows the structuring of synchronized blocks in a more flexible way. With the
+synchronized keyword, you have to get and free the control over a synchronized
+block of code in a structured way. The  Lock interfaces allow you to get more complex
+structures to implement your critical section.</li>
+<li>The  Lock interfaces provide additional functionalities over the  synchronized
+keyword. One of the new functionalities is implemented by the  tryLock() method.
+This method tries to get the control of the lock and if it can't, because it's used by
+other thread, it returns the lock. With the  synchronized keyword, when a thread
+(A) tries to execute a synchronized block of code, if there is another thread (B)
+executing it, the thread (A) is suspended until the thread (B) finishes the execution
+of the synchronized block. With locks, you can execute the  tryLock() method. This
+method returns a  Boolean value indicating if there is another thread running the
+code protected by this lock.</li>
+<li>The  Lock interfaces allow a separation of read and write operations having multiple
+readers and only one modifier.</li>
+<li>The  Lock interfaces offer better performance than the  synchronized keyword.</li></ul></li>
+<li><p>造成死锁的原因</p></li>
+</ul>
+
+<p>You have to be very careful with the use of  Locks to avoid deadlocks. This situation occurs
+when two or more threads are blocked waiting for locks that never will be unlocked. For
+example, a thread (A) locks a Lock (X) and a thread (B) locks a Lock (Y). If now, the thread
+(A) tries to lock the Lock (Y) and the thread (B) simultaneously tries to lock the Lock (X),
+both threads will be blocked indefinitely, because they are waiting for locks that will never
+be liberated. Note that the problem occurs, because both threads try to get the locks in the
+opposite order. The Appendix, Concurrent programming design, explains some good tips to
+design concurrent applications adequately and avoid these deadlocks problems.</p>
+
+<h2>Synchronizing data access with read/write locks</h2>
+
+<ul>
+<li>Main.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * Main class of the example
+ *
+ */
+public class Main {
+
+    /**
+     * Main class of the example
+     * @param args
+     */
+    public static void main(String[] args) {
+
+        // Creates an object to store the prices
+        PricesInfo pricesInfo=new PricesInfo();
+
+        Reader readers[]=new Reader[5];
+        Thread threadsReader[]=new Thread[5];
+
+        // Creates five readers and threads to run them
+        for (int i=0; i&lt;5; i++){
+            readers[i]=new Reader(pricesInfo);
+            threadsReader[i]=new Thread(readers[i]);
+        }
+
+        // Creates a writer and a thread to run it
+        Writer writer=new Writer(pricesInfo);
+        Thread threadWriter=new Thread(writer);
+
+        // Starts the threads
+        for (int i=0; i&lt;5; i++){
+            threadsReader[i].start();
+        }
+        threadWriter.start();
+
+    }
+
+}
+</code></pre>
+
+<ul>
+<li>PricesInfo.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class simulates the store of two prices. We will
+ * have a writer that stores the prices and readers that 
+ * consult this prices
+ *
+ */
+public class PricesInfo {
+
+    /**
+     * The two prices
+     */
+    private double price1;
+    private double price2;
+
+    /**
+     * Lock to control the access to the prices
+     */
+    private ReadWriteLock lock;
+
+    /**
+     * Constructor of the class. Initializes the prices and the Lock
+     */
+    public PricesInfo(){
+        price1=1.0;
+        price2=2.0;
+        lock=new ReentrantReadWriteLock();
+    }
+
+    /**
+     * Returns the first price
+     * @return the first price
+     */
+    public double getPrice1() {
+        lock.readLock().lock();
+        double value=price1;
+        lock.readLock().unlock();
+        return value;
+    }
+
+    /**
+     * Returns the second price
+     * @return the second price
+     */
+    public double getPrice2() {
+        lock.readLock().lock();
+        double value=price2;
+        lock.readLock().unlock();
+        return value;
+    }
+
+    /**
+     * Establish the prices
+     * @param price1 The price of the first product
+     * @param price2 The price of the second product
+     */
+    public void setPrices(double price1, double price2) {
+        lock.writeLock().lock();
+        this.price1=price1;
+        this.price2=price2;
+        lock.writeLock().unlock();
+    }
+}</code></pre>
+
+<ul>
+<li>Reader.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class implements a reader that consults the prices
+ *
+ */
+public class Reader implements Runnable {
+
+    /**
+     * Class that stores the prices
+     */
+    private PricesInfo pricesInfo;
+
+    /**
+     * Constructor of the class
+     * @param pricesInfo object that stores the prices
+     */
+    public Reader (PricesInfo pricesInfo){
+        this.pricesInfo=pricesInfo;
+    }
+
+    /**
+     * Core method of the reader. Consults the two prices and prints them
+     * to the console
+     */
+    @Override
+    public void run() {
+        for (int i=0; i&lt;10; i++){
+            System.out.printf("%s: Price 1: %f\n",Thread.currentThread().getName(),pricesInfo.getPrice1());
+            System.out.printf("%s: Price 2: %f\n",Thread.currentThread().getName(),pricesInfo.getPrice2());
+        }
+    }
+
+}</code></pre>
+
+<ul>
+<li>Writer.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class implements a writer that establish the prices
+ *
+ */
+public class Writer implements Runnable {
+
+    /**
+     * Class that stores the prices
+     */
+    private PricesInfo pricesInfo;
+
+    /**
+     * Constructor of the class
+     * @param pricesInfo object that stores the prices
+     */
+    public Writer(PricesInfo pricesInfo){
+        this.pricesInfo=pricesInfo;
+    }
+
+    /**
+     * Core method of the writer. Establish the prices
+     */
+    @Override
+    public void run() {
+        for (int i=0; i&lt;3; i++) {
+            System.out.printf("Writer: Attempt to modify the prices.\n");
+            pricesInfo.setPrices(Math.random()*10, Math.random()*8);
+            System.out.printf("Writer: Prices have been modified.\n");
+            try {
+                Thread.sleep(2);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+}</code></pre>
+
+<ul>
+<li>输出结果: 读取或者修改价格,ReentrantReadWriteLock读写锁的使用</li>
+</ul>
+
+<h2>Modifying Lock fairness</h2>
+
+<ul>
+<li>Main.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * Main class of the example
+ *
+ */
+public class Main {
+
+    /**
+     * Main method of the example
+     * @param args
+     */
+    public static void main (String args[]){
+        // Creates the print queue
+        PrintQueue printQueue=new PrintQueue();
+
+        // Cretes ten jobs and the Threads to run them
+        Thread thread[]=new Thread[10];
+        for (int i=0; i&lt;10; i++){
+            thread[i]=new Thread(new Job(printQueue),"Thread "+i);
+        }
+
+        // Launch a thread ever 0.1 seconds
+        for (int i=0; i&lt;10; i++){
+            thread[i].start();
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+}</code></pre>
+
+<ul>
+<li>Job.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class simulates a job that send a document to print
+ *
+ */
+public class Job implements Runnable {
+
+    /**
+     * The queue to send the documents
+     */
+    private PrintQueue printQueue;
+
+    /**
+     * Constructor of the class. Initializes the print queue
+     * @param printQueue the print queue to send the documents
+     */
+    public Job(PrintQueue printQueue){
+        this.printQueue=printQueue;
+    }
+
+    /**
+     * Core method of the Job. Sends the document to the queue
+     */
+    @Override
+    public void run() {
+        System.out.printf("%s: Going to print a job\n",Thread.currentThread().getName());
+        printQueue.printJob(new Object());
+        System.out.printf("%s: The document has been printed\n",Thread.currentThread().getName());      
+    }
+
+}</code></pre>
+
+<ul>
+<li>PrintQueue.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class simulates a print queue. 
+ *
+ */
+public class PrintQueue {
+
+    /**
+     * Creates a lock to control the access to the queue.
+     * With the boolean attribute, we control the fairness of
+     * the Lock
+     */
+    private final Lock queueLock=new ReentrantLock(false);
+
+    /**
+     * Method that prints the Job. The printing is divided in two phase two
+     * show how the fairness attribute affects the election of the thread who
+     * has the control of the lock
+     * @param document The document to print
+     */
+    public void printJob(Object document){
+        queueLock.lock();
+
+        try {
+            Long duration=(long)(Math.random()*10000);
+            System.out.printf("%s: PrintQueue: Printing a Job during %d seconds\n",Thread.currentThread().getName(),(duration/1000));
+            Thread.sleep(duration);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            queueLock.unlock();
+        }
+
+
+        queueLock.lock();
+        try {
+            Long duration=(long)(Math.random()*10000);
+            System.out.printf("%s: PrintQueue: Printing a Job during %d seconds\n",Thread.currentThread().getName(),(duration/1000));
+            Thread.sleep(duration);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            queueLock.unlock();
+        }
+    }
+}</code></pre>
+
+<ul>
+<li>输出结果: 可以控制ReentrantLock锁是否公平.根据结果来看,如果构造参数是true,则会依次执行锁顺序,运行起来比较慢</li>
+</ul>
+
+<p>The constructor of the  ReentrantLock and  ReentrantReadWriteLock classes admits
+a  boolean parameter named  fair  that allows you to control the behavior of both classes.
+The  false value is the default value and it's called the non-fair mode. In this mode, when
+there are some threads waiting for a lock ( ReentrantLock or  ReentrantReadWriteLock )
+and the lock has to select one of them to get the access to the critical section, it selects one
+without any criteria. The  true value is called the fair mode. In this mode, when there are
+some threads waiting for a lock ( ReentrantLock or  ReentrantReadWriteLock ) and the
+lock has to select one to get access to a critical section, it selects the thread that has been
+waiting for the most time. Take into account that the behavior explained previously is only
+used with the  lock() and  unlock() methods. As the  tryLock() method doesn't put the
+thread to sleep if the  Lock interface is used, the fair attribute doesn't affect its functionality.</p>
+
+<h2>Using multiple conditions in a Lock</h2>
+
+<ul>
+<li>Main.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * Main class of the example
+ *
+ */
+public class Main {
+
+    /**
+     * Main method of the example
+     * @param args
+     */
+    public static void main(String[] args) {
+        /**
+         * Creates a simulated file with 100 lines
+         */
+        FileMock mock=new FileMock(101, 10);
+
+        /**
+         * Creates a buffer with a maximum of 20 lines
+         */
+        Buffer buffer=new Buffer(20);
+
+        /**
+         * Creates a producer and a thread to run it
+         */
+        Producer producer=new Producer(mock, buffer);
+        Thread threadProducer=new Thread(producer,"Producer");
+
+        /**
+         * Creates three consumers and threads to run them
+         */
+        Consumer consumers[]=new Consumer[3];
+        Thread threadConsumers[]=new Thread[3];
+
+        for (int i=0; i&lt;3; i++){
+            consumers[i]=new Consumer(buffer);
+            threadConsumers[i]=new Thread(consumers[i],"Consumer "+i);
+        }
+
+        /**
+         * Strats the producer and the consumers
+         */
+        threadProducer.start();
+        for (int i=0; i&lt;3; i++){
+            threadConsumers[i].start();
+        }
+    }
+
+}</code></pre>
+
+<ul>
+<li>Buffer.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class implements a buffer to stores the simulate file lines between the
+ * producer and the consumers
+ * 
+ */
+public class Buffer {
+
+    /**
+     * The buffer
+     */
+    private LinkedList&lt;String&gt; buffer;
+
+    /**
+     * Size of the buffer
+     */
+    private int maxSize;
+
+    /**
+     * Lock to control the access to the buffer
+     */
+    private ReentrantLock lock;
+
+    /**
+     * Conditions to control that the buffer has lines and has empty space
+     */
+    private Condition lines;
+    private Condition space;
+
+    /**
+     * Attribute to control where are pending lines in the buffer
+     */
+    private boolean pendingLines;
+
+    /**
+     * Constructor of the class. Initialize all the objects
+     * 
+     * @param maxSize
+     *            The size of the buffer
+     */
+    public Buffer(int maxSize) {
+        this.maxSize = maxSize;
+        buffer = new LinkedList&lt;&gt;();
+        lock = new ReentrantLock();
+        lines = lock.newCondition();
+        space = lock.newCondition();
+        pendingLines = true;
+    }
+
+    /**
+     * Insert a line in the buffer
+     * 
+     * @param line
+     *            line to insert in the buffer
+     */
+    public void insert(String line) {
+        lock.lock();
+        try {
+            while (buffer.size() == maxSize) {
+                space.await();
+            }
+            buffer.offer(line);
+            System.out.printf("%s: Inserted Line: %d\n", Thread.currentThread()
+                    .getName(), buffer.size());
+            lines.signalAll();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Returns a line from the buffer
+     * 
+     * @return a line from the buffer
+     */
+    public String get() {
+        String line=null;
+        lock.lock();        
+        try {
+            while ((buffer.size() == 0) &amp;&amp;(hasPendingLines())) {
+                lines.await();
+            }
+
+            if (hasPendingLines()) {
+                line = buffer.poll();
+                System.out.printf("%s: Line Readed: %d\n",Thread.currentThread().getName(),buffer.size());
+                space.signalAll();
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            lock.unlock();
+        }
+        return line;
+    }
+
+    /**
+     * Establish the value of the variable
+     * 
+     * @param pendingLines
+     */
+    public void setPendingLines(boolean pendingLines) {
+        this.pendingLines = pendingLines;
+    }
+
+    /**
+     * Returns the value of the variable
+     * 
+     * @return the value of the variable
+     */
+    public boolean hasPendingLines() {
+        return pendingLines || buffer.size() &gt; 0;
+    }
+
+}</code></pre>
+
+<ul>
+<li>Consumer.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class reads line from the buffer and process it
+ *
+ */
+public class Consumer implements Runnable {
+
+    /**
+     * The buffer
+     */
+    private Buffer buffer;
+
+    /**
+     * Constructor of the class. Initialize the buffer
+     * @param buffer
+     */
+    public Consumer (Buffer buffer) {
+        this.buffer=buffer;
+    }
+
+    /**
+     * Core method of the consumer. While there are pending lines in the
+     * buffer, try to read one.
+     */
+    @Override
+    public void run() {
+        while (buffer.hasPendingLines()) {
+            String line=buffer.get();
+            processLine(line);
+        }
+    }
+
+    /**
+     * Method that simulates the processing of a line. Waits 10 milliseconds
+     * @param line
+     */
+    private void processLine(String line) {
+        try {
+            Random random=new Random();
+            Thread.sleep(random.nextInt(100));
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }       
+    }
+
+}</code></pre>
+
+<ul>
+<li>Producer.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class gets lines from the simulate file and stores them in the
+ * buffer, if there is space in it.
+ *
+ */
+public class Producer implements Runnable {
+
+    /**
+     * Simulated File
+     */
+    private FileMock mock;
+
+    /**
+     * Buffer
+     */
+    private Buffer buffer;
+
+    /**
+     * Constructor of the class. Initialize the objects
+     * @param mock Simulated file
+     * @param buffer Buffer
+     */
+    public Producer (FileMock mock, Buffer buffer){
+        this.mock=mock;
+        this.buffer=buffer; 
+    }
+
+    /**
+     * Core method of the producer. While are pending lines in the
+     * simulated file, reads one and try to store it in the buffer.
+     */
+    @Override
+    public void run() {
+        buffer.setPendingLines(true);
+        while (mock.hasMoreLines()){
+            String line=mock.getLine();
+            buffer.insert(line);
+        }
+        buffer.setPendingLines(false);
+    }
+
+}</code></pre>
+
+<ul>
+<li>FileMock.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class simulates a text file. It creates a defined number
+ * of random lines to process them sequentially.
+ *
+ */
+public class FileMock {
+
+    /**
+     * Content of the simulate file
+     */
+    private String content[];
+    /**
+     * Number of the line we are processing
+     */
+    private int index;
+
+    /**
+     * Constructor of the class. Generate the random data of the file
+     * @param size: Number of lines in the simulate file
+     * @param length: Length of the lines
+     */
+    public FileMock(int size, int length){
+        content=new String[size];
+        for (int i=0; i&lt;size; i++){
+            StringBuilder buffer=new StringBuilder(length);
+            for (int j=0; j&lt;length; j++){
+                int indice=(int)Math.random()*255;
+                buffer.append((char)indice);
+            }
+            content[i]=buffer.toString();
+        }
+        index=0;
+    }
+
+    /**
+     * Returns true if the file has more lines to process or false if not
+     * @return true if the file has more lines to process or false if not
+     */
+    public boolean hasMoreLines(){
+        return index&lt;content.length;
+    }
+
+    /**
+     * Returns the next line of the simulate file or null if there aren't more lines
+     * @return
+     */
+    public String getLine(){
+        if (this.hasMoreLines()) {
+            System.out.println("Mock: "+(content.length-index));
+            return content[index++];
+        } 
+        return null;
+    }
+
+}</code></pre>
+
+<ul>
+<li><p>输出结果:  当条件比较多的时候,可以用ReentrantLock锁和lock.newCondition()两个条件,来实现经典的生产者-消费者模式</p></li>
+<li><p>注意事项:
+When a thread calls the signal() or signallAll() methods of a
+condition, one or all of the threads that were waiting for that condition are
+woken up, but this doesn't guarantee that the condition that made them
+sleep is now true, so you must put the await() calls inside a while
+loop. You can't leave that loop until the condition is true. While the
+condition is false, you must call await() again.
+You must be careful with the use of  await() and  signal() . If you call the  await() method
+in a condition and never call the  signal() method in this condition, the thread will be
+sleeping forever.</p></li>
+</ul>
+
+<h2> </h2>
+
+<ul>
+<li>Main.java</li>
+</ul>
+
+<pre><code class="java"></code></pre>
+
+<ul>
+- 
+</ul>
+
+<pre><code class="java"></code></pre>
+
+<ul>
+- 
+</ul>
+
+<pre><code class="java"></code></pre>
+
+<ul>
+<li>输出结果: </li>
+</ul>
+<script type='text/javascript'>
+$(document).ready(function(){
+  if($('code').length>0){
+    $('code').parent().addClass('prettyprint linenums');
+    prettyPrint();
+};
+});
+</script>
+</body>
+</html>
