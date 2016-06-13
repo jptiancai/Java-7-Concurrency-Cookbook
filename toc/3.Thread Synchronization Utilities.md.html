@@ -41,70 +41,479 @@ according to the characteristics of your application.</p>
 <li>Main.java</li>
 </ul>
 
-<pre><code class="java"></code></pre>
+<pre><code class="java">/**
+ * Main class of the example.
+ *
+ */
+public class Main {
+
+    /**
+     * Main method of the class. Run ten jobs in parallel that
+     * send documents to the print queue at the same time.
+     */
+    public static void main (String args[]){
+
+        // Creates the print queue
+        PrintQueue printQueue=new PrintQueue();
+
+        // Creates ten Threads
+        Thread thread[]=new Thread[10];
+        for (int i=0; i&lt;10; i++){
+            thread[i]=new Thread(new Job(printQueue),"Thread "+i);
+        }
+
+        // Starts the Threads
+        for (int i=0; i&lt;10; i++){
+            thread[i].start();
+        }
+    }
+
+}</code></pre>
 
 <ul>
-- 
+<li>Job.java</li>
 </ul>
 
-<pre><code class="java"></code></pre>
+<pre><code class="java">/**
+ * This class simulates a job that send a document to print.
+ *
+ */
+public class Job implements Runnable {
+
+    /**
+     * Queue to print the documents
+     */
+    private PrintQueue printQueue;
+
+    /**
+     * Constructor of the class. Initializes the queue
+     * @param printQueue
+     */
+    public Job(PrintQueue printQueue){
+        this.printQueue=printQueue;
+    }
+
+    /**
+     * Core method of the Job. Sends the document to the print queue and waits
+     *  for its finalization
+     */
+    @Override
+    public void run() {
+        System.out.printf("%s: Going to print a job\n",Thread.currentThread().getName());
+        printQueue.printJob(new Object());
+        System.out.printf("%s: The document has been printed\n",Thread.currentThread().getName());      
+    }
+}</code></pre>
 
 <ul>
-- 
+<li>PrintQueue.java</li>
 </ul>
 
-<pre><code class="java"></code></pre>
+<pre><code class="java">/**
+ * This class implements the PrintQueue using a Semaphore to control the
+ * access to it. 
+ *
+ */
+public class PrintQueue {
+
+    /**
+     * Semaphore to control the access to the queue
+     */
+    private final Semaphore semaphore;
+
+    /**
+     * Constructor of the class. Initializes the semaphore
+     */
+    public PrintQueue(){
+        semaphore=new Semaphore(1);
+    }
+
+    /**
+     * Method that simulates printing a document
+     * @param document Document to print
+     */
+    public void printJob (Object document){
+        try {
+            // Get the access to the semaphore. If other job is printing, this
+            // thread sleep until get the access to the semaphore
+            semaphore.acquire();
+
+            Long duration=(long)(Math.random()*10);
+            System.out.printf("%s: PrintQueue: Printing a Job during %d seconds\n",Thread.currentThread().getName(),duration);
+            Thread.sleep(duration);         
+            TimeUnit.SECONDS.sleep(duration);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            // Free the semaphore. If there are other threads waiting for this semaphore,
+            // the JVM selects one of this threads and give it the access.
+            semaphore.release();            
+        }
+    }
+
+}</code></pre>
 
 <ul>
-<li>输出结果: </li>
+<li><p>输出结果: 同样是打印机,这次使用Semaphors来实现,和ReentrantLock类似,都有公平和非公平模式</p></li>
+<li><p>Semaphors的构造参数是1的原因?</p></li>
 </ul>
 
-<h2> </h2>
+<p>Another important point in this example is the constructor of the  PrintQueue class and
+the initialization of the  Semaphore object. You pass the value  1 as the parameter of this
+constructor, so you are creating a binary semaphore. The initial value of the internal counter
+is  1 , so you will protect the access to one shared resource, in this case, the print queue.
+When you start the 10 threads, the first one acquires the semaphore and gets the access to
+the critical section. The rest are blocked by the semaphore until the thread that has acquired
+it, releases it. When this occurs, the semaphore selects one of the waiting threads and gives it
+the access to the critical section. All the jobs print their documents, but one by one.</p>
+
+<h2>Controlling concurrent access to multiple copies of a resource</h2>
 
 <ul>
 <li>Main.java</li>
 </ul>
 
-<pre><code class="java"></code></pre>
+<pre><code class="java">/**
+ * Main class of the example.
+ *
+ */
+public class Main {
+
+    /**
+     * Main method of the class. Run ten jobs in parallel that
+     * send documents to the print queue at the same time.
+     */
+    public static void main (String args[]){
+
+        // Creates the print queue
+        PrintQueue printQueue=new PrintQueue();
+
+        // Creates ten Threads
+        Thread thread[]=new Thread[12];
+        for (int i=0; i&lt;12; i++){
+            thread[i]=new Thread(new Job(printQueue),"Thread "+i);
+        }
+
+        // Starts the Threads
+        for (int i=0; i&lt;12; i++){
+            thread[i].start();
+        }
+    }
+
+}</code></pre>
 
 <ul>
-- 
+<li>Job.java</li>
 </ul>
 
-<pre><code class="java"></code></pre>
+<pre><code class="java">/**
+ * This class simulates a job that send a document to print.
+ *
+ */
+public class Job implements Runnable {
+
+    /**
+     * Queue to print the documents
+     */
+    private PrintQueue printQueue;
+
+    /**
+     * Constructor of the class. Initializes the queue
+     * @param printQueue
+     */
+    public Job(PrintQueue printQueue){
+        this.printQueue=printQueue;
+    }
+
+    /**
+     * Core method of the Job. Sends the document to the print queue and waits
+     *  for its finalization
+     */
+    @Override
+    public void run() {
+        System.out.printf("%s: Going to print a job\n",Thread.currentThread().getName());
+        printQueue.printJob(new Object());
+        System.out.printf("%s: The document has been printed\n",Thread.currentThread().getName());      
+    }
+}</code></pre>
 
 <ul>
-- 
+<li>PrintQueue.java</li>
 </ul>
 
-<pre><code class="java"></code></pre>
+<pre><code class="java">/**
+ * This class implements a PrintQueue that have access to three printers.
+ * 
+ * We use a Semaphore to control the access to one of the printers. When
+ * a job wants to print, if there is one or more printers free, it has access
+ * to one of the free printers. If not, it sleeps until one of the printers
+ * is free.
+ *
+ */
+public class PrintQueue {
+
+    /**
+     * Semaphore to control the access to the printers
+     */
+    private Semaphore semaphore;
+
+    /**
+     * Array to control what printer is free
+     */
+    private boolean freePrinters[];
+
+    /**
+     * Lock to control the access to the freePrinters array
+     */
+    private Lock lockPrinters;
+
+    /**
+     * Constructor of the class. It initializes the three objects
+     */
+    public PrintQueue(){
+        semaphore=new Semaphore(3);
+        freePrinters=new boolean[3];
+        for (int i=0; i&lt;3; i++){
+            freePrinters[i]=true;
+        }
+        lockPrinters=new ReentrantLock();
+    }
+
+    public void printJob (Object document){
+        try {
+            // Get access to the semaphore. If there is one or more printers free,
+            // it will get the access to one of the printers
+            semaphore.acquire();
+
+            // Get the number of the free printer
+            int assignedPrinter=getPrinter();
+
+            Long duration=(long)(Math.random()*10);
+            System.out.printf("%s: PrintQueue: Printing a Job in Printer %d during %d seconds\n",Thread.currentThread().getName(),assignedPrinter,duration);
+            TimeUnit.SECONDS.sleep(duration);
+
+            // Free the printer
+            freePrinters[assignedPrinter]=true;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            // Free the semaphore
+            semaphore.release();            
+        }
+    }
+
+    private int getPrinter() {
+        int ret=-1;
+
+        try {
+            // Get the access to the array
+            lockPrinters.lock();
+            // Look for the first free printer
+            for (int i=0; i&lt;freePrinters.length; i++) {
+                if (freePrinters[i]){
+                    ret=i;
+                    freePrinters[i]=false;
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            // Free the access to the array
+            lockPrinters.unlock();
+        }
+        return ret;
+    }
+
+}</code></pre>
 
 <ul>
-<li>输出结果: </li>
+<li><p>输出结果: 多台打印机打印多个文件的情况怎么办? 这里用Semaphore + ReentrantLock 来实现</p>
+
+<p>But semaphores can also be used when
+you need to protect various copies of a resource, or when you have a critical section that can
+be executed by more than one thread at the same time.</p></li>
 </ul>
 
-<h2> </h2>
+<h2>Waiting for multiple concurrent events</h2>
 
 <ul>
 <li>Main.java</li>
 </ul>
 
-<pre><code class="java"></code></pre>
+<pre><code class="java">/**
+ * Main class of the example. Create, initialize and execute all the objects
+ * necessaries for the example
+ *
+ */
+public class Main {
+
+    /**
+     * Main method of the example
+     * @param args
+     */
+    public static void main(String[] args) {
+
+        // Creates a VideoConference with 10 participants.
+        Videoconference conference=new Videoconference(10);
+        // Creates a thread to run the VideoConference and start it.
+        Thread threadConference=new Thread(conference);
+        threadConference.start();
+
+        // Creates ten participants, a thread for each one and starts them
+        for (int i=0; i&lt;10; i++){
+            Participant p=new Participant(conference, "Participant "+i);
+            Thread t=new Thread(p);
+            t.start();
+        }
+
+    }
+
+}</code></pre>
 
 <ul>
-- 
+<li>Participant.java</li>
 </ul>
 
-<pre><code class="java"></code></pre>
+<pre><code class="java">/**
+ * This class implements a participant in the VideoConference
+ *
+ */
+public class Participant implements Runnable {
+
+    /**
+     * VideoConference in which this participant will take part off
+     */
+    private Videoconference conference;
+
+    /**
+     * Name of the participant. For log purposes only
+     */
+    private String name;
+
+    /**
+     * Constructor of the class. Initialize its attributes
+     * @param conference VideoConference in which is going to take part off
+     * @param name Name of the participant
+     */
+    public Participant(Videoconference conference, String name) {
+        this.conference=conference;
+        this.name=name;
+    }
+
+    /**
+     * Core method of the participant. Waits a random time and joins the VideoConference 
+     */
+    @Override
+    public void run() {
+        Long duration=(long)(Math.random()*10);
+        try {
+            TimeUnit.SECONDS.sleep(duration);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }   
+        conference.arrive(name);
+
+    }
+}</code></pre>
 
 <ul>
-- 
+<li>Videoconference.java</li>
 </ul>
 
-<pre><code class="java"></code></pre>
+<pre><code class="java">/**
+ * This class implements the controller of the Videoconference
+ * 
+ * It uses a CountDownLatch to control the arrival of all the 
+ * participants in the conference.
+ *
+ */
+public class Videoconference implements Runnable{
+
+    /**
+     * This class uses a CountDownLatch to control the arrivel of all
+     * the participants
+     */
+    private final CountDownLatch controller;
+
+    /**
+     * Constructor of the class. Initializes the CountDownLatch
+     * @param number The number of participants in the videoconference
+     */
+    public Videoconference(int number) {
+        controller=new CountDownLatch(number);
+    }
+
+    /**
+     * This method is called by every participant when he incorporates to the VideoConference
+     * @param participant
+     */
+    public void arrive(String name){
+        System.out.printf("%s has arrived.\n",name);
+        // This method uses the countDown method to decrement the internal counter of the
+        // CountDownLatch
+        controller.countDown();
+        System.out.printf("VideoConference: Waiting for %d participants.\n",controller.getCount());
+    }
+
+    /**
+     * This is the main method of the Controller of the VideoConference. It waits for all
+     * the participants and the, starts the conference
+     */
+    @Override
+    public void run() {
+        System.out.printf("VideoConference: Initialization: %d participants.\n",controller.getCount());
+        try {
+            // Wait for all the participants
+            controller.await();
+            // Starts the conference
+            System.out.printf("VideoConference: All the participants have come\n");
+            System.out.printf("VideoConference: Let's start...\n");
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+}</code></pre>
 
 <ul>
-<li>输出结果: </li>
+<li><p>输出结果: 模拟视频会议中,有10个人要参加,必须等到10个人都来了,视频会议才会开始,用到 CountDownLatch</p></li>
+<li><p>CountDownLatch具体用法</p></li>
+</ul>
+
+<p>The Java concurrency API provides a class that allows one or more threads to wait until a
+set of operations are made. It's the  CountDownLatch class. This class is initialized with an
+integer number, which is the number of operations the threads are going to wait for. When
+a thread wants to wait for the execution of these operations, it uses the  await() method.
+This method puts the thread to sleep until the operations are completed. When one of these
+operations finishes, it uses the  countDown() method to decrement the internal counter of the  CountDownLatch class. When the counter arrives to  0 , the class wakes up all the
+threads that were sleeping in the  await() method.</p>
+
+<p>The  CountDownLatch class has three basic elements:</p>
+
+<ul>
+<li>The initialization value that determines how many events the  CountDownLatch class waits for</li>
+<li>The  await() method, called by the threads that wait for the finalization of all the events</li>
+<li>The  countDown() method, called by the events when they finish their execution</li>
+</ul>
+
+<p>When you create a  CountDownLatch object, the object uses the constructor's parameter
+to initialize an internal counter. Every time a thread calls the  countDown() method, the
+CountDownLatch object decrements the internal counter in one unit. When the internal
+counter arrives to  0 , the  CountDownLatch object wakes up all the threads that were waiting
+in the  await() method.
+There's no way to re-initialize the internal counter of the  CountDownLatch object or to modify
+its value. Once the counter is initialized, the only method you can use to modify its value is
+the  countDown() method explained earlier. When the counter arrives to  0 , all the calls to the
+await() method return immediately and all subsequent calls to the  countDown() method
+have no effect.
+There are some differences with respect to other synchronization methods, which are
+as follows:</p>
+
+<ul>
+<li>The  CountDownLatch mechanism is not used to protect a shared resource or a critical section. It is used to synchronize one or more threads with the execution of various tasks.</li>
+<li>It only admits one use. As we explained earlier, once the counter of CountDownLatch arrives at  0 , all the calls to its methods have no effect. You have to create a new object if you want to do the same synchronization again.</li>
 </ul>
 
 <h2> </h2>
