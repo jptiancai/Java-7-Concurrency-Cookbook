@@ -1,0 +1,1138 @@
+﻿<!doctype html public '-//W3C//DTD HTML 4.0 Transitional //EN'>
+<html>
+<head>
+<title>8.Testing Concurrent Applications</title>
+<meta charset='UTF-8' />
+<meta name='generator' content='EverEdit' />
+<link href='D:\EverEdit\mode\markdown\default.css' rel='stylesheet'></link>
+<link href='D:\EverEdit\mode\markdown\prettify.css' rel='stylesheet'></link>
+<script type='text/javascript' src='D:\EverEdit\mode\markdown\prettify.js'></script>
+<script type='text/javascript' src='D:\EverEdit\mode\markdown\jquery-1.10.2.min.js'></script>
+<script type='text/javascript' src='D:\EverEdit\mode\markdown\toc.js'></script>
+</head>
+<body>
+<div id='generated-toc'></div>
+<ul>
+<li>测试</li>
+</ul>
+
+<p>Testing an application is a critical task. Before the application is ready for end users, you
+have to demonstrate its correctness. You use a test process to prove that correctness
+is achieved and errors are fixed. The testing phase is a common task in any software
+development and also quality assurance processes. You can find a lot of literature about
+testing processes and the different approaches you can apply to your developments. There
+are also a lot of libraries, such as  JUnit , and applications, such as Apache  JMetter that
+you can use to test your Java applications in an automated way. It's even more critical in a
+concurrent application development</p>
+
+<p>The fact that concurrent applications have two or more threads that share data
+structures and interact with each other adds more difficulty to the testing phase.
+The biggest problem you will face when you test concurrent applications is that the
+execution of threads is non-deterministic. You can't guarantee the order of the execution
+of the threads, so it's difficult to reproduce errors.</p>
+
+<h2>Monitoring a Lock interface</h2>
+
+<ul>
+<li>Main.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * Main class of the example. Create five threads to execute the task and write info
+ * about the Lock shared by all the threads
+ *
+ */
+public class Main {
+
+    /**
+     * @param args
+     */
+    public static void main(String[] args) throws Exception {
+        /*
+         * Create a Lock object
+         */
+        MyLock lock=new MyLock();
+
+        /*
+         * Create an array for five threads
+         */
+        Thread threads[]=new Thread[5];
+
+        /*
+         * Create and start five threads
+         */
+        for (int i=0; i&lt;5; i++) {
+            Task task=new Task(lock);
+            threads[i]=new Thread(task);
+            threads[i].start();
+        }
+
+        /*
+         * Create a loop with 15 steps
+         */
+        for (int i=0; i&lt;15; i++) {
+            /*
+             * Write info about the lock
+             */
+            System.out.printf("Main: Logging the Lock\n");
+            System.out.printf("************************\n");
+            System.out.printf("Lock: Owner : %s\n",lock.getOwnerName());
+            System.out.printf("Lock: Queued Threads: %s\n",lock.hasQueuedThreads());
+            if (lock.hasQueuedThreads()){
+                System.out.printf("Lock: Queue Length: %d\n",lock.getQueueLength());
+                System.out.printf("Lock: Queued Threads: ");
+                Collection&lt;Thread&gt; lockedThreads=lock.getThreads();
+                for (Thread lockedThread : lockedThreads) {
+                System.out.printf("%s ",lockedThread.getName());
+                }
+                System.out.printf("\n");
+            }
+            System.out.printf("Lock: Fairness: %s\n",lock.isFair());
+            System.out.printf("Lock: Locked: %s\n",lock.isLocked());
+            System.out.printf("************************\n");
+            /*
+             * Sleep the thread for one second
+             */
+            TimeUnit.SECONDS.sleep(1);
+        }
+    }
+}</code></pre>
+
+<ul>
+<li>MyLock.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * Create a specific class to extend the ReentrantLock class.
+ * The main objective of this class is to convert in public two
+ * protected methods. 
+ * getOwnerName() returns the name of the thread that have the control
+ * of the lock and uses the proctected method getOwner();
+ * getThreads() returns the list of threads queued in the lock and uses
+ * the protected method getQueuedThreads();
+ */
+public class MyLock extends ReentrantLock {
+
+    /**
+     * Declare the serial version uid of the class
+     */
+    private static final long serialVersionUID = 1L;
+
+    /**
+     * This method returns the name of the thread that have the control of the Lock of the constant "None"
+     * if the Lock is free 
+     * @return The name of the thread that has the control of the lock
+     */
+    public String getOwnerName() {
+        if (this.getOwner()==null) {
+            return "None";
+        }
+        return this.getOwner().getName();
+    }
+
+    /**
+     * This method returns the list of the threads queued in the lock
+     * @return The list of threads queued in the Lock
+     */
+    public Collection&lt;Thread&gt; getThreads() {
+        return this.getQueuedThreads();
+    }
+}</code></pre>
+
+<ul>
+<li>Task.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This task used to write information about a Lock. It takes the control
+ * of the Lock, sleeps for 500 milliseconds and free the Lock. Repeat this
+ * behavior five times
+ *
+ */
+public class Task implements Runnable {
+
+    /**
+     * Lock shared by all the tasks
+     */
+    private Lock lock;
+
+    /**
+     * Constructor of the class
+     * @param lock Lock shared by all the tasks
+     */
+    public Task (Lock lock) {
+        this.lock=lock;
+    }
+
+    /**
+     * Main method of the task. Takes the control of the Lock, sleeps for 500 milliseconds and free the
+     * lock. Repeats this behavior five times
+     */
+    @Override
+    public void run() {
+        /*
+         * Loop with five steps
+         */
+        for (int i=0; i&lt;5; i++) {
+            /*
+             * Acquire the lock
+             */
+            lock.lock();
+            System.out.printf("%s: Get the Lock.\n",Thread.currentThread().getName());
+            /*
+             * Sleeps the thread 500 milliseconds
+             */
+            try {
+                TimeUnit.MILLISECONDS.sleep(500);
+                System.out.printf("%s: Free the Lock.\n",Thread.currentThread().getName());
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } finally {
+                /*
+                 * Free the lock
+                 */
+                lock.unlock();
+            }
+        }
+
+    }
+}</code></pre>
+
+<ul>
+<li>输出结果: 打印出5个线程中各个阶段的各个状态是怎么样的.</li>
+</ul>
+
+<h2>Monitoring a Phaser class</h2>
+
+<ul>
+<li>Main.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * Ma頽 class of the example. Creates a Phaser with three participants and
+ * Three task objects. Write information about the evolution of the Phaser
+ */
+public class Main {
+
+    /**
+     * @param args
+     */
+    public static void main(String[] args) throws Exception {
+        /*
+         * Create a new Phaser for three participants
+         */
+        Phaser phaser=new Phaser(3);
+
+        /*
+         * Create and launch three tasks
+         */
+        for (int i=0; i&lt;3; i++) {
+            Task task=new Task(i+1, phaser);
+            Thread thread=new Thread(task);
+            thread.start();
+        }
+
+        /*
+         * Write information about the Phaser
+         */
+        for (int i=0; i&lt;10; i++) {
+            System.out.printf("********************\n");
+            System.out.printf("Main: Phaser Log\n");
+            System.out.printf("Main: Phaser: Phase: %d\n",phaser.getPhase());
+            System.out.printf("Main: Phaser: Registered Parties: %d\n",phaser.getRegisteredParties());
+            System.out.printf("Main: Phaser: Arrived Parties: %d\n",phaser.getArrivedParties());
+            System.out.printf("Main: Phaser: Unarrived Parties: %d\n",phaser.getUnarrivedParties());
+            System.out.printf("********************\n");
+
+            TimeUnit.SECONDS.sleep(1);
+        }
+    }
+}</code></pre>
+
+<ul>
+- 
+</ul>
+
+<pre><code class="java">/**
+ * Task to write information about a Phaser. It executes three phases. In each
+ * phase, it sleeps the thread the number of seconds specified by the time attribute
+ *
+ */
+public class Task implements Runnable {
+
+    /**
+     * Number of seconds this task is going to sleep the thread in each phase
+     */
+    private int time;
+
+    /**
+     * Phaser to synchronize the execution of phases
+     */
+    private Phaser phaser;
+
+    /**
+     * Constructor of the class. Initialize its attributes
+     * @param time Number of seconds this task is going to sleep the thread in each phase
+     * @param phaser Phaser to synchronize the execution of tasks
+     */
+    public Task(int time, Phaser phaser) {
+        this.time=time;
+        this.phaser=phaser;
+    }
+
+    /**
+     * Main method of the task. Executes three phases. In each phase, sleeps
+     * the thread the number of seconds specified by the time attribute.
+     */
+    @Override
+    public void run() {
+        /*
+         * Arrive to the phaser
+         */
+        phaser.arrive();
+        /*
+         * Phase 1
+         */
+        System.out.printf("%s: Entering phase 1.\n",Thread.currentThread().getName());
+        try {
+            TimeUnit.SECONDS.sleep(time);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.printf("%s: Finishing phase 1.\n",Thread.currentThread().getName());
+        /*
+         * End of Phase 1
+         */
+        phaser.arriveAndAwaitAdvance();
+        /*
+         * Phase 2
+         */
+        System.out.printf("%s: Entering phase 2.\n",Thread.currentThread().getName());
+        try {
+            TimeUnit.SECONDS.sleep(time);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.printf("%s: Finishing phase 2.\n",Thread.currentThread().getName());
+        /*
+         * End of Phase 2
+         */
+        phaser.arriveAndAwaitAdvance();
+        /*
+         * Phase 3
+         */
+        System.out.printf("%s: Entering phase 3.\n",Thread.currentThread().getName());
+        try {
+            TimeUnit.SECONDS.sleep(time);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.printf("%s: Finishing phase 3.\n",Thread.currentThread().getName());
+        /*
+         * End of Phase 3
+         */
+        phaser.arriveAndDeregister();
+    }
+}</code></pre>
+
+<ul>
+<li>输出结果: 打印Phaser的各个阶段的线程状态</li>
+</ul>
+
+<h2>Monitoring an Executor framework</h2>
+
+<ul>
+<li>Main.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * Main class of the example. Create an Executor and submits ten Task
+ * objects for its execution. It writes information about the executor
+ * to see its evolution. 
+ *
+ */
+public class Main {
+
+    /**
+     * @param args
+     */
+    public static void main(String[] args) throws Exception{
+
+        /*
+         * Create a new Executor
+         */
+        ThreadPoolExecutor executor=(ThreadPoolExecutor)Executors.newCachedThreadPool();
+
+        /*
+         * Create and submit ten tasks
+         */
+        Random random=new Random();
+        for (int i=0; i&lt;10; i++) {
+            Task task=new Task(random.nextInt(10000));
+            executor.submit(task);
+        }
+
+        /*
+         * Write information about the executor
+         */
+        for (int i=0; i&lt;5; i++){
+            showLog(executor);
+            TimeUnit.SECONDS.sleep(1);
+        }
+
+        /*
+         * Shutdown the executor
+         */
+        executor.shutdown();
+
+        /*
+         * Write information about the executor
+         */
+        for (int i=0; i&lt;5; i++){
+            showLog(executor);
+            TimeUnit.SECONDS.sleep(1);
+        }
+
+        /*
+         * Wait for the finalization of the executor
+         */
+        executor.awaitTermination(1, TimeUnit.DAYS);
+
+        /*
+         * Write a message to indicate the end of the program 
+         */
+        System.out.printf("Main: End of the program.\n");
+
+    }
+
+    /**
+     * Method that writes in the console information about an executor
+     * @param executor Executor this method is going to process 
+     */
+    private static void showLog(ThreadPoolExecutor executor) {
+        System.out.printf("*********************");
+        System.out.printf("Main: Executor Log");
+        System.out.printf("Main: Executor: Core Pool Size: %d\n",executor.getCorePoolSize());
+        System.out.printf("Main: Executor: Pool Size: %d\n",executor.getPoolSize());
+        System.out.printf("Main: Executor: Active Count: %d\n",executor.getActiveCount());
+        System.out.printf("Main: Executor: Task Count: %d\n",executor.getTaskCount());
+        System.out.printf("Main: Executor: Completed Task Count: %d\n",executor.getCompletedTaskCount());
+        System.out.printf("Main: Executor: Shutdown: %s\n",executor.isShutdown());
+        System.out.printf("Main: Executor: Terminating: %s\n",executor.isTerminating());
+        System.out.printf("Main: Executor: Terminated: %s\n",executor.isTerminated());
+        System.out.printf("*********************\n");
+    }
+
+}</code></pre>
+
+<ul>
+<li>Task.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * Task implemented to log data about an Executor 
+ *
+ */
+public class Task implements Runnable {
+
+    /**
+     * Number of milliseconds this task is going to sleep the thread
+     */
+    private long milliseconds;
+
+    /**
+     * Constructor of the task. Initializes its attributes
+     * @param milliseconds Number of milliseconds this task is going to sleep the thread
+     */
+    public Task (long milliseconds) {
+        this.milliseconds=milliseconds;
+    }
+
+    /**
+     * Main method of the task. Sleep the thread the number of millisecons specified by
+     * the milliseconds attribute.
+     */
+    @Override
+    public void run() {
+
+        System.out.printf("%s: Begin\n",Thread.currentThread().getName());
+        try {
+            TimeUnit.MILLISECONDS.sleep(milliseconds);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.printf("%s: End\n",Thread.currentThread().getName());
+
+    }
+
+}</code></pre>
+
+<ul>
+<li>输出结果: 看出线程池中的任务数,线程数,可以很直观的看,也比较好定位错误!~</li>
+</ul>
+
+<h2>Monitoring a Fork/Join pool</h2>
+
+<ul>
+<li>Main.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * Main class of the example. It creates all the elements for the
+ * execution and writes information about the Fork/Join pool that
+ * executes the task
+ *
+ */
+public class Main {
+
+    /**
+     * @param args
+     */
+    public static void main(String[] args) throws Exception {
+
+        /*
+         * Create the Fork/Join pool
+         */
+        ForkJoinPool pool=new ForkJoinPool();
+
+        /*
+         * Create a new Array of integer numbers with 10000 elements
+         */
+        int array[]=new int[10000];
+
+        /*
+         * Create a new task
+         */
+        Task task1=new Task(array,0,array.length);
+
+        /*
+         * Execute the task in the Fork/Join pool
+         */
+        pool.execute(task1);
+
+        /*
+         * Wait for the finalization of the task writing information
+         * about the pool every second
+         */
+        while (!task1.isDone()) {
+            showLog(pool);
+            TimeUnit.SECONDS.sleep(1);
+        }
+
+        /*
+         * Shutdown the pool
+         */
+        pool.shutdown();
+
+        /*
+         * Wait for the finalization of the pool
+         */
+        pool.awaitTermination(1, TimeUnit.DAYS);
+
+        /*
+         * End of the program
+         */
+        showLog(pool);
+        System.out.printf("Main: End of the program.\n");
+
+    }
+
+    /*
+     * This method writes information about a Fork/Join pool
+     */
+    private static void showLog(ForkJoinPool pool) {
+        System.out.printf("**********************\n");
+        System.out.printf("Main: Fork/Join Pool log\n");
+        System.out.printf("Main: Fork/Join Pool: Parallelism: %d\n",pool.getParallelism());
+        System.out.printf("Main: Fork/Join Pool: Pool Size: %d\n",pool.getPoolSize());
+        System.out.printf("Main: Fork/Join Pool: Active Thread Count: %d\n",pool.getActiveThreadCount());
+        System.out.printf("Main: Fork/Join Pool: Running Thread Count: %d\n",pool.getRunningThreadCount());
+        System.out.printf("Main: Fork/Join Pool: Queued Submission: %d\n",pool.getQueuedSubmissionCount());
+        System.out.printf("Main: Fork/Join Pool: Queued Tasks: %d\n",pool.getQueuedTaskCount());
+        System.out.printf("Main: Fork/Join Pool: Queued Submissions: %s\n",pool.hasQueuedSubmissions());
+        System.out.printf("Main: Fork/Join Pool: Steal Count: %d\n",pool.getStealCount());
+        System.out.printf("Main: Fork/Join Pool: Terminated : %s\n",pool.isTerminated());
+        System.out.printf("**********************\n");
+    }
+
+}</code></pre>
+
+<ul>
+<li>Task.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class implements a task used to show how to monitor the
+ * behavior of a Fork/Join pool. The main objective of the task
+ * is increment all the elements of an array. Every task has to
+ * process a set of elements of this array. If the task has to process
+ * more than 100 elements, it divides the set it has two process in two
+ * subsets and create two tasks to execute them. Otherwise, it process
+ * the elements of the subset it has to process
+ */
+public class Task extends RecursiveAction{
+
+    /**
+     * Declare and initialize the serial version uid of the class
+     */
+    private static final long serialVersionUID = 1L;
+
+
+    /**
+     * Array of elements you want to increment
+     */
+    private int array[];
+
+    /**
+     * Start position of the set of elements this task has to process
+     */
+    private int start;
+
+    /**
+     * End position of the set of elements this task has to process
+     */
+    private int end;
+
+    /**
+     * Constructor of the class. Initializes its attributes
+     * @param array Array of elements this task has to process
+     * @param start Start position of the set of elements this task has to process
+     * @param end End position of the set of elements this task has to process 
+     */
+    public Task (int array[], int start, int end) {
+        this.array=array;
+        this.start=start;
+        this.end=end;
+    }
+
+    /**
+     * Main method of the task. If it has to process more that 100 elements, it
+     * divides that set it two sub-sets and creates two task to process them.
+     * Otherwise, it increments directly the elements it has to process.
+     */
+    @Override
+    protected void compute() {
+        if (end-start&gt;100) {
+            int mid=(start+end)/2;
+            Task task1=new Task(array,start,mid);
+            Task task2=new Task(array,mid,end);
+
+            /*
+             * Start the sub-tasks
+             */
+            task1.fork();
+            task2.fork();
+
+            /*
+             * Wait for the finalization of the sub-tasks
+             */
+            task1.join();
+            task2.join();
+        } else {
+            for (int i=start; i&lt;end; i++) {
+                array[i]++;
+
+                try {
+                    TimeUnit.MILLISECONDS.sleep(5);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+}</code></pre>
+
+<ul>
+<li>输出结果: 打印出线程池中的任务数量,等等</li>
+</ul>
+
+<h2>Writing effective log messages</h2>
+
+<ul>
+<li>Main.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * Main class of the example. It launch five Task objects and write
+ * some log messages indicating the evolution of the execution of the program
+ */
+public class Main {
+
+    /**
+     * @param args
+     */
+    public static void main(String[] args) {
+
+        /*
+         * Get the Logger object
+         */
+        Logger logger=MyLogger.getLogger("Core");
+
+        /*
+         * Write a message indicating the start of the execution
+         */
+        logger.entering("Core", "main()",args);
+
+        /*
+         * Create and launch five Task objects
+         */
+        Thread threads[]=new Thread[5];
+        for (int i=0; i&lt;threads.length; i++) {
+            logger.log(Level.INFO,"Launching thread: "+i);
+            Task task=new Task();
+            threads[i]=new Thread(task);
+            logger.log(Level.INFO,"Thread created: "+threads[i].getName());
+            threads[i].start();
+        }
+
+        /*
+         * Write a log message indicating that the threads have been created
+         */
+        logger.log(Level.INFO,"Ten Threads created. Waiting for its finalization");
+
+        /*
+         * Wait for the finalization of the threads
+         */
+        for (int i=0; i&lt;threads.length; i++) {
+            try {
+                threads[i].join();
+                logger.log(Level.INFO,"Thread has finished its execution",threads[i]);
+            } catch (InterruptedException e) {
+                logger.log(Level.SEVERE, "Exception", e);
+            }
+        }
+
+        /*
+         * Write a log message indicating the end of the program
+         */
+        logger.exiting("Main", "main()");
+    }
+
+}</code></pre>
+
+<ul>
+<li>MyFormatter.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class is used to format the log messages. The Logger class call the format() method
+ * to get the formatted log message that it's going to write. The format method receives a
+ * LogRecord object as parameter. That object has all the information about the message.
+ *
+ */
+public class MyFormatter extends Formatter {
+
+    /**
+     * Method that formats the log message. It's declared as abstract in the
+     * Formatter class. It's called by the Logger class. It receives a LogRecord
+     * object as parameter with all the information of the log message
+     */
+    @Override
+    public String format(LogRecord record) {
+
+        /*
+         * Create a string buffer to construct the message.
+         */
+        StringBuilder sb=new StringBuilder();
+
+        /*
+         * Add the parts of the message with the desired format.
+         */
+        sb.append("["+record.getLevel()+"] - ");
+        sb.append(new Date(record.getMillis())+" : ");
+        sb.append(record.getSourceClassName()+"."+record.getSourceMethodName()+" : ");
+        sb.append(record.getMessage()+"\n");
+
+        /*
+         * Convert the string buffer to string and return it
+         */
+        return sb.toString();
+    }
+}</code></pre>
+
+<ul>
+<li>MyLogger.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class is used to create a Logger object with the configuration
+ * you want. In this case, you're going to write all the log messages generated
+ * in the application to the recipe8.log file and with the format specified in the
+ * MyFormatter class. It uses the Logger class to create the Logger object. This class
+ * creates a Logger object per name that is passed as parameter. 
+ *
+ */
+public class MyLogger {
+
+    /**
+     * Handler to control that the log messages are written in the recipe8.log file
+     */
+    private static Handler handler;
+
+    /**
+     * Static method that returns the log object associated with the name received
+     * as parameter. If it's a new Logger object, this method configures it with your
+     * configuration. 
+     * @param name Name of the Logger object you want to obtain.
+     * @return The Logger object generated.
+     */
+    public static Logger getLogger(String name){
+        /*
+         * Get the logger
+         */
+        Logger logger=Logger.getLogger(name);
+        /*
+         * Set the level to show all the messages
+         */
+        logger.setLevel(Level.ALL);
+        try {
+            /*
+             * If the Handler object is null, we create one to
+             * write the log messages in the recipe8.log file
+             * with the format specified by the MyFormatter class
+             */
+            if (handler==null) {
+                handler=new FileHandler("recipe8.log");
+                Formatter format=new MyFormatter();
+                handler.setFormatter(format);
+            }
+            /*
+             * If the Logger object hasn't handler, we add the Handler object
+             * to it
+             */
+            if (logger.getHandlers().length==0) {
+                logger.addHandler(handler);
+            }
+        } catch (SecurityException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        /*
+         * Return the Logger object.
+         */
+        return logger;
+    }
+
+}</code></pre>
+
+<ul>
+<li>Task.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class is the Task you're going to use to test the
+ * Logger system you have implemented. It simply write a log
+ * message indicating the start of the task, sleeps the thread for
+ * two seconds and write another log message indicating the end of the
+ * task.
+ *
+ */
+public class Task implements Runnable {
+
+    /**
+     * Main method of the task
+     */
+    @Override
+    public void run() {
+        /*
+         * Get the Logger
+         */
+        Logger logger=MyLogger.getLogger(this.getClass().getName());
+
+        /*
+         * Write a message indicating the start of the task
+         */
+        logger.entering(Thread.currentThread().getName(), "run()");
+
+        /*
+         * Sleep the task for two seconds
+         */
+        try {
+            TimeUnit.SECONDS.sleep(2);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        /*
+         * Write a message indicating the end of the task
+         */
+        logger.exiting(Thread.currentThread().getName(), "run()",Thread.currentThread());
+    }
+}</code></pre>
+
+<ul>
+<li>输出结果: 输出日志格式化</li>
+</ul>
+
+<h2>Analyzing concurrent code with FindBugs</h2>
+
+<ul>
+<li>Main.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * Main class of the example. It launch ten Task objects 
+ *
+ */
+public class Main {
+
+    /**
+     * @param args
+     */
+    public static void main(String[] args) {
+        /*
+         * Create a Lock
+         */
+        ReentrantLock lock=new ReentrantLock();
+
+        /*
+         * Executes the threads. There is a problem with this
+         * block of code. It uses the run() method instead of
+         * the start() method.
+         */
+        for (int i=0; i&lt;10; i++) {
+            Task task=new Task(lock);
+            Thread thread=new Thread(task);
+            thread.run();
+        }
+
+    }
+
+}</code></pre>
+
+<ul>
+<li>Task.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * Task implemented to test the FindBugs utility 
+ *
+ */
+public class Task implements Runnable {
+
+    /**
+     * Lock used in the task
+     */
+    private ReentrantLock lock;
+
+    /**
+     * Constructor of the class
+     * @param lock Lock used in the task
+     */
+    public Task(ReentrantLock lock) {
+        this.lock=lock;
+    }
+
+    /**
+     * Main method of the task. 
+     */
+    @Override
+    public void run() {
+        lock.lock();
+
+        try {
+            TimeUnit.SECONDS.sleep(1);
+            /*
+             * There is a problem with this unlock. If the thread is interrupted
+             * while it is sleeping, the lock won't be unlocked and it will cause
+             * that the threads that are waiting for this block will be blocked and
+             * never will get the control of the Lock.
+             */
+            lock.unlock();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+}</code></pre>
+
+<ul>
+<li>输出结果:  这是一个有问题的程序,可以用<code>FindBugs</code>工具找出问题</li>
+</ul>
+
+<h2>Configuring Eclipse for debugging concurrency code</h2>
+
+<ul>
+<li>默认是指暂停你断点的线程,其他线程照样跑,如果你想到达断点的时候,其他线程也都暂停,采取以下措施:</li>
+</ul>
+
+<p>Change the value of the Default suspend policy for new breakpoints from Suspend
+Thread to Suspend VM (marked in red in the screenshot).</p>
+
+<p>You can see that only the worker-21 is suspended (marked in red in the screenshot) while
+the rest of the threads are running. However, if you change Default suspend policy for new
+breakpoints to Suspend VM, all the threads suspend their execution while you're debugging
+a concurrent application and the debug process hits a breakpoint. The following screenshot
+shows an example of this situation:</p>
+
+<h2>Testing concurrency code with MultithreadedTC</h2>
+
+<p>MultithreadedTC is a Java library for testing concurrent applications. Its main objective is to
+solve the problem of concurrent applications being non-deterministic. You can't control their
+order of execution. For this purpose, it includes an internal metronome to control the order
+of execution of the different threads that form the application. Those testing threads are
+implemented as methods of a class.
+In this recipe, you will learn how to use the MultithreadedTC library to implement a test for
+LinkedTransferQueue </p>
+
+<ul>
+<li>Main.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * Main class of the example. Executes the test of the LinkedTransferQueue
+ */
+public class Main {
+
+    /**
+     * @param args
+     */
+    public static void main(String[] args) throws Throwable {
+
+        /*
+         * Create a Test object
+         */
+        ProducerConsumerTest test=new ProducerConsumerTest();
+
+        /*
+         * Execute the test
+         */
+        System.out.printf("Main: Starting the test\n");
+        TestFramework.runOnce(test);
+        System.out.printf("Main: The test has finished\n");
+
+    }
+
+}</code></pre>
+
+<ul>
+<li>ProducerConsumerTest.java</li>
+</ul>
+
+<pre><code class="java">/**
+ * This class implements a test of the LinkedTransferQueue. It has
+ * two consumers and a producer. First, arrives the first consumer then
+ * arrives the second consumer and finally the producer puts two Strings
+ * in the buffer. 
+ */
+public class ProducerConsumerTest extends MultithreadedTestCase {
+
+    /**
+     * Declare the buffer shared by the producer and the consumers 
+     */
+    private LinkedTransferQueue&lt;String&gt; queue;
+
+    /**
+     * Creates the buffer
+     */
+    @Override
+    public void initialize() {
+        super.initialize();
+        queue=new LinkedTransferQueue&lt;String&gt;();
+        System.out.printf("Test: The test has been initialized\n");
+    }
+
+    /**
+     * This is the first consumer. It only consumes a String
+     * @throws InterruptedException
+     */
+    public void thread1() throws InterruptedException {
+        String ret=queue.take();
+        System.out.printf("Thread 1: %s\n",ret);
+    }
+
+    /**
+     * This is the second consumer. It waits for the first tick that
+     * happens when the first consumer arrives. Then, consumes a String
+     * @throws InterruptedException
+     */
+    public void thread2() throws InterruptedException {
+        waitForTick(1);
+        String ret=queue.take();
+        System.out.printf("Thread 2: %s\n",ret);
+    }
+
+    /**
+     * This is the Producer. It waits for the first tick that happens when
+     * the first consumer arrives. Then, waits for the second tick that 
+     * happens when the second consumer arrives. Finally, put two strings in
+     * the buffer.
+     */
+    public void thread3() {
+        waitForTick(1);
+        waitForTick(2);
+        queue.put("Event 1");
+        queue.put("Event 2");
+        System.out.printf("Thread 3: Inserted two elements\n");
+    }
+
+    /**
+     * This method is executed when the test finish its execution. It checks that
+     * the buffer is empty
+     */
+    @Override
+    public void finish() {
+        super.finish();
+        System.out.printf("Test: End\n");
+        assertEquals(true, queue.size()==0);
+        System.out.printf("Test: Result: The queue is empty\n");
+    }
+}</code></pre>
+
+<ul>
+<li>输出结果:  引用了第三方的jar包:<code>MultithreadedTC.jar</code></li>
+</ul>
+
+<p>In this recipe, you have implemented a test for the  LinkedTransferQueue class using the
+MultithreadedTC library. You can implement a test to any concurrent application or class using
+this library and its metronome. In the example, you have implemented the classical producer/
+consumer problem with two consumers and a producer. You want to test that the first  String
+object introduced in the buffer is consumed by the first consumer that arrives at the buffer
+and the second  String object introduced in the buffer is consumed by the second consumer
+that arrives at the buffer.</p>
+
+<p>The MultithreadedTC library is based on the JUnit library, which is the most often used library
+to implement unit tests in Java. To implement a basic test using the MultithreadedTC library,
+you have to extend the  MultithreadedTestCase class. This class extends the  junit.
+framework.AssertJUnit class that includes all the methods to check the results of the
+test. It doesn't extend the  junit.framework.TestCase class, so you can't integrate the
+MultithreadedTC tests with other JUnit tests.</p>
+
+<p>To control the order of execution of threads, you use the  waitForTick() method. This
+method receives an  integer type as a parameter and puts the thread that is executing
+the method to sleep until all threads that are running in the test are blocked. When they are
+blocked, the MultithreadedTC library resumes the threads that are blocked by a call to the
+waitForTick() method.</p>
+
+<p>The integer you pass as a parameter of the  waitForTick() method is used to control the
+order of execution. The metronome of the MultithreadedTC library has an internal counter.
+When all the threads are blocked, the library increments that counter to the next number
+specified in the  waitForTick() calls that are blocked.</p>
+
+<p>Internally, when the MultithreadedTC library has to execute a test, first it executes the
+initialize() method. Then, it creates a thread per method that starts with the  thread
+keyword (in your example, the methods  thread1() ,  thread2() , and  thread3() ) and when
+all the threads have finished their execution, it executes the  finish() method. To execute
+the test, you have used the  runOnce() method of the  TestFramework class</p>
+
+<ul>
+<li>如果死锁发生了会怎么办?</li>
+</ul>
+
+<p>If the MultithreadedTC library detects that all the threads of the test are blocked, but none
+of them are blocked in the  waitForTick() method, the test is declared to be in a deadlock
+state and a  java.lang.IllegalStateException exception is thrown.</p>
+<script type='text/javascript'>
+$(document).ready(function(){
+  if($('code').length>0){
+    $('code').parent().addClass('prettyprint linenums');
+    prettyPrint();
+};
+});
+</script>
+</body>
+</html>
